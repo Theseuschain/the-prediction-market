@@ -19,50 +19,6 @@ A multi-option prediction market demonstrating bidirectional agent-contract inte
 - **Agent → Contract**: Market Creator agent calls the contract to create markets
 - **Contract → Agent**: Contract requests the Resolver Oracle agent to resolve markets
 
-## Quick Start with CLI
-
-The `pm` CLI connects directly to the Theseus chain via subxt - no external tools needed.
-
-```bash
-# Build the CLI
-cd cli && cargo build --release
-alias pm='./target/release/pm'
-
-# Set up environment (after deploying contract and registering agents)
-export PM_CONTRACT=0x...   # Contract address (32 bytes hex)
-export PM_CREATOR_AGENT=0x...  # Market Creator agent ID
-
-# Create a market (interactive wizard)
-pm create-market
-
-# Or with a direct question
-pm create-market -q "Will BTC be above \$100k at noon UTC?"
-
-# Place bets (option index: 0=first, 1=second, etc.)
-pm bet 0 --option 0 1000    # Bet on first option (e.g., "Yes")
-pm bet 0 --option 1 1000    # Bet on second option (e.g., "No")
-pm bet 0 -o 2 500           # Bet on third option (for multi-option markets)
-
-# Check status
-pm status 0
-
-# Request resolution (after deadline - triggers Resolver Oracle)
-pm resolve 0
-
-# Claim winnings (after resolution)
-pm claim 0
-
-# Show config
-pm config
-```
-
-**Options:**
-
-- `--rpc <URL>` - Chain RPC endpoint (default: `ws://127.0.0.1:9944`)
-- `--seed <SEED>` - Signer seed/URI (default: `//Alice`)
-- `--contract <HEX>` - Contract address (or `PM_CONTRACT` env var)
-- `--creator-agent <HEX>` - Agent ID (or `PM_CREATOR_AGENT` env var)
-
 ## Architecture
 
 ```
@@ -155,51 +111,47 @@ Added to the tool-executor, fetches cryptocurrency prices from CoinGecko:
 ./scripts/setup_demo.sh
 ```
 
-The script will guide you through:
-
-1. Building the contract
-2. Deploying to the chain
-3. Registering both agents
-4. Configuring the contract with agent addresses
-
-### Demo Flow
-
-**1. Create a Market**
+The `pm` CLI connects directly to the Theseus chain via subxt - no external tools needed.
 
 ```bash
-theseus-cli agent run <CREATOR_ID> \
-  --input "Create a market for whether Bitcoin will be above $100,000 at noon UTC today"
+# Build the CLI
+cd cli && cargo build --release
+alias pm='./target/release/pm'
+
+# Set up environment (after deploying contract and registering agents)
+export PM_CONTRACT=0x...   # Contract address (32 bytes hex)
+export PM_CREATOR_AGENT=0x...  # Market Creator agent ID
+
+# Create a market (interactive wizard)
+pm create-market
+
+# Or with a direct question
+pm create-market -q "Will BTC be above \$100k at noon UTC?"
+
+# Place bets (option index: 0=first, 1=second, etc.)
+pm bet 0 --option 0 1000    # Bet on first option (e.g., "Yes")
+pm bet 0 --option 1 1000    # Bet on second option (e.g., "No")
+pm bet 0 -o 2 500           # Bet on third option (for multi-option markets)
+
+# Check status
+pm status 0
+
+# Request resolution (after deadline - triggers Resolver Oracle)
+pm resolve 0
+
+# Claim winnings (after resolution)
+pm claim 0
+
+# Show config
+pm config
 ```
 
-The Market Creator will:
+**Options:**
 
-- Parse your request
-- Ask clarifying questions if needed
-- Create the market on-chain
-
-**2. Place Bets**
-
-```bash
-# Bet YES (1000 units)
-theseus-cli contract call <CONTRACT> place_bet 0 true 1000
-
-# Bet NO (1000 units)
-theseus-cli contract call <CONTRACT> place_bet 0 false 1000
-```
-
-**3. Request Resolution** (after deadline)
-
-```bash
-theseus-cli contract call <CONTRACT> request_resolution 0
-```
-
-This triggers the Resolver Oracle agent via chain extension.
-
-**4. Claim Winnings** (after resolution)
-
-```bash
-theseus-cli contract call <CONTRACT> claim_winnings 0
-```
+- `--rpc <URL>` - Chain RPC endpoint (default: `ws://127.0.0.1:9944`)
+- `--seed <SEED>` - Signer seed/URI (default: `//Alice`)
+- `--contract <HEX>` - Contract address (or `PM_CONTRACT` env var)
+- `--creator-agent <HEX>` - Agent ID (or `PM_CREATOR_AGENT` env var)
 
 ## Example Markets
 
