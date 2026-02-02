@@ -59,31 +59,26 @@ pm config
 │     User/EOA    │─────prompt──────────>│  Market Creator Agent   │
 │                 │                      │  (market_creator.ship)  │
 └────────┬────────┘                      └───────────┬─────────────┘
-         │                                           │
-         │ 3. place_bet()                            │ 2. contracts.call(create_market)
+         │                                           │ 2. contracts.call(create_market)
+         │ 3. place_bet()                            │
+         │ 7. claim_winnings() (payout to EOA)        │
          │                                           ▼
-         │                               ┌─────────────────────────┐
-         └──────────────────────────────>│   Prediction Market     │
-                                         │      Contract           │
-         ┌──────────────────────────────>│   (prediction_market)   │
-         │ 7. claim_winnings()           └───────────┬─────────────┘
-         │                                           │
-┌────────┴────────┐                                  │ 4. chain_ext(agents_request)
-│                 │                                  ▼
-│     User/EOA    │                      ┌─────────────────────────┐
-│                 │                      │  Resolver Oracle Agent  │
-└─────────────────┘                      │  (resolver_oracle.ship) │
-                                         │                         │
-                                         │  5. get_price/web_search│
-                                         └───────────┬─────────────┘
-                                                     │
-                                                     │ 6. callback(resolution)
-                                                     ▼
-                                         ┌─────────────────────────┐
-                                         │   Prediction Market     │
-                                         │      Contract           │
-                                         │   (prediction_market)   │
-                                         └─────────────────────────┘
+         │                         ┌───────────────────────────────────────────┐
+         └────────────────────────>│        Prediction Market Contract          │
+                                   │           (prediction_market)             │
+                                   └───────────────┬───────────────────────────┘
+                                                   │ 4. chain_ext(agents_request)
+                                                   ▼
+                                   ┌─────────────────────────┐
+                                   │  Resolver Oracle Agent  │
+                                   │  (resolver_oracle.ship) │
+                                   │                         │
+                                   │  5. get_price/web_search│
+                                   └───────────┬─────────────┘
+                                               │ 6. callback(resolution)
+                                               └───────────────────────▲
+                                                                       │
+                                                                       └── back to contract
 ```
 
 ## Components
