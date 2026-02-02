@@ -1,8 +1,19 @@
-# Prediction Market Demo
+<div align="center">
+
+[![Built on Theseus](https://img.shields.io/badge/Built%20on-Theseus-blue?style=flat-square)](https://www.theseuschain.com)
+[![SHIP](https://img.shields.io/badge/Language-SHIP-orange?style=flat-square)](https://www.theseuschain.com/docs/ship)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+[Documentation](https://www.theseuschain.com/docs)
+
+</div>
+
+# The Prediction Market
 
 A multi-option prediction market demonstrating bidirectional agent-contract interactions on Theseus.
 
 **Features:**
+
 - **Multi-option markets**: Supports 2-10 options (binary Yes/No or custom options like Team A/B/Draw)
 - **Parimutuel betting**: No odds at bet time; payout proportional to pool
 - **Agent → Contract**: Market Creator agent calls the contract to create markets
@@ -46,6 +57,7 @@ pm config
 ```
 
 **Options:**
+
 - `--rpc <URL>` - Chain RPC endpoint (default: `ws://127.0.0.1:9944`)
 - `--seed <SEED>` - Signer seed/URI (default: `//Alice`)
 - `--contract <HEX>` - Contract address (or `PM_CONTRACT` env var)
@@ -58,27 +70,24 @@ pm config
 │                 │  1. Natural language │                         │
 │     User/EOA    │─────prompt──────────>│  Market Creator Agent   │
 │                 │                      │  (market_creator.ship)  │
-└────────┬────────┘                      └───────────┬─────────────┘
-         │                                           │ 2. contracts.call(create_market)
-         │ 3. place_bet()                            │
-         │ 7. claim_winnings() (payout to EOA)        │
-         │                                           ▼
-         │                         ┌───────────────────────────────────────────┐
-         └────────────────────────>│        Prediction Market Contract          │
-                                   │           (prediction_market)             │
-                                   └───────────────┬───────────────────────────┘
-                                                   │ 4. chain_ext(agents_request)
-                                                   ▼
-                                   ┌─────────────────────────┐
-                                   │  Resolver Oracle Agent  │
-                                   │  (resolver_oracle.ship) │
-                                   │                         │
-                                   │  5. get_price/web_search│
-                                   └───────────┬─────────────┘
-                                               │ 6. callback(resolution)
-                                               └───────────────────────▲
-                                                                       │
-                                                                       └── back to contract
+└───────┬─────────┘                      └───────────┬─────────────┘
+        │                                            │
+        │ 3. place_bet()                             │ 2. contracts.call(create_market)
+        │ 7. claim_winnings()                        │
+        │                                            ▼
+        │                          ┌─────────────────────────────────┐
+        └─────────────────────────>│   Prediction Market Contract    │<────┐
+                                   │      (prediction_market)        │     │
+                                   └───────────────┬─────────────────┘     │
+                                                   │                       │
+                                                   │ 4. chain_ext          │ 6. callback
+                                                   │    (agents_request)   │    (resolution)
+                                                   ▼                       │
+                                   ┌───────────────────────────────────────┴─┐
+                                   │       Resolver Oracle Agent             │
+                                   │       (resolver_oracle.ship)            │
+                                   │       5. get_price/web_search           │
+                                   └─────────────────────────────────────────┘
 ```
 
 ## Components
@@ -86,6 +95,7 @@ pm config
 ### 1. Prediction Market Contract (`contract/`)
 
 A Rust smart contract that manages:
+
 - Market creation (restricted to Market Creator agent)
 - Bet placement (YES/NO shares)
 - Resolution requests (via chain extension to Resolver Oracle)
@@ -94,6 +104,7 @@ A Rust smart contract that manages:
 ### 2. Market Creator Agent (`agents/market_creator.ship`)
 
 A SHIP agent that:
+
 - Takes natural language market requests from users
 - Asks clarifying questions if the market is ambiguous
 - Generates structured market parameters
@@ -102,6 +113,7 @@ A SHIP agent that:
 ### 3. Resolver Oracle Agent (`agents/resolver_oracle.ship`)
 
 A SHIP agent that:
+
 - Only accepts requests from the contract (via chain extension)
 - Uses `get_price` tool for price-based markets
 - Uses `web_search`/`fetch_url` for event-based markets
@@ -123,6 +135,7 @@ pm config           Show current configuration
 ### 5. Price Tool (`get_price`)
 
 Added to the tool-executor, fetches cryptocurrency prices from CoinGecko:
+
 - Supports common symbols (BTC, ETH, SOL, etc.)
 - Free tier API, no key required
 - Rate-limited to avoid throttling
@@ -143,6 +156,7 @@ Added to the tool-executor, fetches cryptocurrency prices from CoinGecko:
 ```
 
 The script will guide you through:
+
 1. Building the contract
 2. Deploying to the chain
 3. Registering both agents
@@ -158,6 +172,7 @@ theseus-cli agent run <CREATOR_ID> \
 ```
 
 The Market Creator will:
+
 - Parse your request
 - Ask clarifying questions if needed
 - Create the market on-chain
@@ -238,6 +253,7 @@ Resolve over days/weeks using `web_search`:
 ### "Market creator agent not configured"
 
 The contract hasn't been configured with agent addresses. Run:
+
 ```bash
 theseus-cli contract call <CONTRACT> set_market_creator <CREATOR_ID>
 ```
@@ -245,6 +261,7 @@ theseus-cli contract call <CONTRACT> set_market_creator <CREATOR_ID>
 ### "Only market creator agent can create markets"
 
 You're trying to create a market directly instead of through the agent. Use:
+
 ```bash
 theseus-cli agent run <CREATOR_ID> --input "your market request"
 ```
@@ -260,6 +277,7 @@ The market's deadline block hasn't passed yet. Wait until the deadline, then cal
 ### Price tool returns "Asset not found"
 
 The asset name might not be recognized. Try using:
+
 - Full names: `bitcoin`, `ethereum`, `solana`
 - Common symbols: `btc`, `eth`, `sol`
 - CoinGecko IDs: `matic-network`, `avalanche-2`
@@ -283,6 +301,7 @@ cargo test
 ### Updating Agents
 
 After modifying `.ship` files, re-register the agents:
+
 ```bash
 theseus-cli agent update <AGENT_ID> agents/market_creator.ship
 theseus-cli agent update <AGENT_ID> agents/resolver_oracle.ship
