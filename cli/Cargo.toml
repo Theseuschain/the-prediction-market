@@ -1,0 +1,40 @@
+[package]
+name = "prediction-market-cli"
+version = "0.1.0"
+edition = "2021"
+description = "CLI for interacting with the Theseus Prediction Market demo"
+
+# Keep independent from main workspace
+[workspace]
+
+[[bin]]
+name = "pm"
+path = "src/main.rs"
+
+[dependencies]
+# CLI framework
+clap = { version = "4.5", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# Substrate/subxt for chain interaction
+subxt = { version = "0.38", features = ["substrate-compat"] }
+subxt-signer = { version = "0.38", features = ["sr25519"] }
+
+# Encoding
+codec = { version = "3.7.4", package = "parity-scale-codec" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+
+# User interaction
+dialoguer = "0.11"
+console = "0.15"
+
+# Hex encoding
+hex = "0.4"

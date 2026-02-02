@@ -1,0 +1,25 @@
+[package]
+name = "prediction_market"
+version = "0.1.0"
+edition = "2021"
+authors = ["Theseus Team"]
+description = "Prediction market smart contract for Theseus chain"
+
+# Keep this contract independent from the main workspace
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+parity-scale-codec = { version = "3.6", default-features = false, features = ["derive"] }
+scale-info = { version = "2.10", default-features = false, features = ["derive"] }
+
+[features]
+default = ["std"]
+std = ["parity-scale-codec/std", "scale-info/std"]
+
+[profile.release]
+opt-level = "z"        # Optimize for size
+lto = true             # Link-time optimization
+panic = "abort"        # No unwinding

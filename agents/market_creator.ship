@@ -1,0 +1,223 @@
+// Market Creator Agent
+// Takes natural language market requests, clarifies ambiguities, and creates structured markets
+//
+// This agent is the ONLY account allowed to create markets in the prediction market contract.
+// It ensures all markets have clear resolution criteria before creation.
+// Supports both binary (Yes/No) and multi-option markets.
+
+#[agent(name = "MarketCreator", version = 1, ship = "1.0")]
+
+const gpt_5_1: bytes32 = 0xe49630ccb59348a9cbbd9989e6774e8b7340b347fbcd94da1f535fb25c15f117;
+
+// Contract address - set after deployment
+const PREDICTION_MARKET_CONTRACT: bytes32 = 0x0000000000000000000000000000000000000000000000000000000000000000;
+
+// Selector for create_market function
+const CREATE_MARKET_SELECTOR: bytes4 = 0x01000001;
+
+// ============================================================================
+// Types
+// ============================================================================
+
+struct MarketParams {
+    question: string,
+    options: string[],           // ["Yes", "No"] for binary, or custom options
+    resolution_criteria: string,
+    resolution_source: string,
+    deadline_blocks: number
+}
+
+struct ClarificationRequest {
+    needs_clarification: bool,
+    question_for_user?: string,
+    reason?: string
+}
+
+struct MarketCreationResult {
+    market_id: number,
+    question: string,
+    options: string[],
+    deadline_block: number
+}
+
+struct UserClarification {
+    response: string
+}
+
+// ============================================================================
+// State
+// ============================================================================
+
+let user_request: string;
+let clarification_count: number;
+let market_params: MarketParams;
+let contract_result: number[];
+
+// ============================================================================
+// Entry Point
+// ============================================================================
+
+#[entry]
+node start(request: string) {
+    user_request = request;
+    clarification_count = 0;
+    
+    messages.push(system(`You are a prediction market creation assistant.
+
+Your job is to help users create well-structured prediction markets. A good market has:
+1. A clear, unambiguous question
+2. Well-defined options (at least 2, can be more than Yes/No)
+3. Specific resolution criteria (exactly what determines the winning option)
+4. A verifiable source (where to check the outcome)
+5. A reasonable deadline
+
+## Market Types
+
+### Binary Markets (2 options)
+Default to ["Yes", "No"] unless the question implies different binary outcomes.
+Examples:
+- "Will BTC hit 100k?" → ["Yes", "No"]
+- "Will it rain tomorrow?" → ["Yes", "No"]
+- "Higher or lower than X?" → ["Higher", "Lower"]
+
+### Multi-Option Markets (3+ options)
+Use when there are multiple distinct outcomes.
+Examples:
+- "Who wins the election?" → ["Candidate A", "Candidate B", "Candidate C"]
+- "What will BTC price be?" → ["Below $50k", "$50k-$75k", "$75k-$100k", "Above $100k"]
+- "Match result?" → ["Team A wins", "Team B wins", "Draw"]
+
+## Common Sources
+- Price markets: CoinGecko, Yahoo Finance
+- Sports: Official league websites
+- Events: Official announcements, news outlets
+
+If the user's request is ambiguous, ask ONE clarifying question.
+After at most 2 clarifications, make reasonable assumptions and proceed.`));
+    
+    messages.push(user(request));
+    
+    goto(analyze);
+}
+
+// ============================================================================
+// Analysis - Check if clarification needed
+// ============================================================================
+
+#[model]
+node analyze() {
+    let analysis = model(gpt_5_1)
+        .schema(ClarificationRequest)
+        .invoke(messages);
+    
+    messages.push(analysis);
+    
+    if (analysis.output.needs_clarification && clarification_count < 2) {
+        goto(request_clarification);
+    } else {
+        goto(generate_market);
+    }
+}
+
+// ============================================================================
+// Clarification Loop
+// ============================================================================
+
+node request_clarification() {
+    clarification_count = clarification_count + 1;
+    
+    // Pause and wait for user to provide clarification
+    // The question_for_user was set by the model in analyze
+    let clarification: UserClarification = pause("clarification_needed", 1000);
+    
+    messages.push(user(clarification.response));
+    
+    goto(analyze);
+}
+
+// ============================================================================
+// Market Generation
+// ============================================================================
+
+#[model]
+node generate_market() {
+    messages.push(user(`Now generate the final market parameters.
+
+Requirements:
+- question: Clear, unambiguous question
+- options: Array of possible outcomes (minimum 2)
+  - For binary: ["Yes", "No"] or similar
+  - For multi-option: All distinct, mutually exclusive outcomes
+- resolution_criteria: Exact conditions for each option to win
+- resolution_source: Where to verify (URL, API, etc.)
+- deadline_blocks: Blocks until resolution (600 blocks ≈ 1 hour at 6s/block)
+
+For price markets, use CoinGecko as the source.`));
+    
+    let params = model(gpt_5_1)
+        .schema(MarketParams)
+        .invoke(messages);
+    
+    messages.push(params);
+    
+    // Store in state for next node
+    market_params = params.output;
+    
+    goto(call_contract);
+}
+
+// ============================================================================
+// Contract Interaction
+// ============================================================================
+
+node call_contract() {
+    // Encode the create_market call
+    // create_market(question, options, criteria, source, deadline)
+    let call_data = contracts.encode_call(
+        CREATE_MARKET_SELECTOR,
+        [
+            market_params.question,
+            market_params.options,
+            market_params.resolution_criteria,
+            market_params.resolution_source,
+            market_params.deadline_blocks
+        ]
+    );
+    
+    // Call the prediction market contract
+    // value = 0 (no transfer), gas_limit = 10B
+    let result = contracts.call(
+        PREDICTION_MARKET_CONTRACT,
+        call_data,
+        0n,
+        10000000000n
+    );
+    
+    // Store result in state for next node
+    contract_result = result;
+    
+    goto(confirm_creation);
+}
+
+node confirm_creation() {
+    // Decode the result to get market_id
+    let market_id = contracts.decode_call(contract_result, number);
+    
+    let options_list = market_params.options.join(", ");
+    let market_type = if (len(market_params.options) == 2) { "Binary" } else { "Multi-option" };
+    
+    messages.push(assistant(`Market created successfully!
+
+**Market ID**: ${market_id}
+**Type**: ${market_type}
+**Question**: ${market_params.question}
+**Options**: ${options_list}
+
+The market is now open for betting. Users can bet on any of the options.
+
+After the deadline (${market_params.deadline_blocks} blocks), anyone can trigger resolution. The Resolver Oracle agent will determine the winning option based on:
+- **Criteria**: ${market_params.resolution_criteria}
+- **Source**: ${market_params.resolution_source}`));
+    
+    end;
+}

@@ -1,0 +1,159 @@
+// Resolver Oracle Agent
+// Resolves prediction markets by verifying outcomes using tools
+// Supports both binary and multi-option markets
+//
+// SECURITY: This agent only accepts requests from the prediction market contract
+// via the chain extension (ContractRequest trigger). Direct user calls are rejected.
+
+#[agent(name = "MarketResolver", version = 1, ship = "1.0")]
+
+const gpt_5_1: bytes32 = 0xe49630ccb59348a9cbbd9989e6774e8b7340b347fbcd94da1f535fb25c15f117;
+
+// ============================================================================
+// Types
+// ============================================================================
+
+// Input from contract via chain extension
+struct MarketResolutionRequest {
+    market_id: number,
+    question: string,
+    options: string[],           // Available options to choose from
+    resolution_criteria: string,
+    resolution_source: string
+}
+
+// Output returned to contract via callback
+struct ResolutionResult {
+    market_id: number,
+    winning_option: number,      // Index into options array (0-based)
+    confidence_pct: number,      // 0-100
+    evidence_summary: string
+}
+
+// Tool return types
+struct SearchResult {
+    title: string,
+    url: string,
+    snippet: string
+}
+
+struct FetchedDocument {
+    url: string,
+    content: string
+}
+
+struct PriceData {
+    asset: string,
+    price_usd: number,
+    timestamp: number
+}
+
+// ============================================================================
+// Tools
+// ============================================================================
+
+tool web_search(query: string) -> SearchResult[];
+tool fetch_url(url: string) -> FetchedDocument;
+tool get_price(asset: string) -> PriceData;
+
+// ============================================================================
+// State
+// ============================================================================
+
+let request: MarketResolutionRequest;
+
+// ============================================================================
+// Entry Point with Access Control
+// ============================================================================
+
+#[entry]
+node start(input: MarketResolutionRequest) {
+    // SECURITY NOTE: This agent should only be invoked by the prediction market contract
+    // via the chain extension. Access control is enforced at the pallet level by only
+    // allowing registered contracts to make agent requests.
+    
+    request = input;
+    
+    let options_list = input.options.join(", ");
+    let num_options = len(input.options);
+    
+    messages.push(system(`You are a prediction market resolution oracle.
+
+Your job is to determine the winning option for prediction markets by verifying facts.
+
+## Rules
+1. For PRICE markets: use the get_price tool to fetch current prices
+2. For EVENT markets: use web_search then fetch_url to verify outcomes
+3. ALWAYS verify with tools before deciding - never guess
+4. Compare evidence against the exact resolution criteria
+5. Return the INDEX of the winning option (0-based)
+
+## Output Format
+Return a ResolutionResult with:
+- winning_option: Index of the winning option (0 to ${num_options - 1})
+- confidence_pct: Your confidence level (0-100)
+- evidence_summary: Brief explanation of your evidence
+
+## Important
+- Options are 0-indexed: first option is 0, second is 1, etc.
+- You must pick exactly ONE winning option
+- If truly unable to determine, pick the most likely based on available evidence`));
+    
+    messages.push(user(`Please resolve this prediction market:
+
+**Market ID**: ${input.market_id}
+
+**Question**: ${input.question}
+
+**Options** (0-indexed, pick by index number):
+${options_list}
+(Index 0 = first option, index 1 = second option, etc.)
+
+**Resolution Criteria**: ${input.resolution_criteria}
+
+**Verification Source**: ${input.resolution_source}
+
+Use the available tools to verify the outcome, then return your resolution with the winning option INDEX (0 to ${num_options - 1}).`));
+    
+    goto(think);
+}
+
+// ============================================================================
+// ReAct Loop
+// ============================================================================
+
+#[model]
+node think() {
+    let out = model(gpt_5_1)
+        .tools([web_search, fetch_url, get_price])
+        .schema(ResolutionResult)
+        .invoke(messages);
+    
+    messages.push(out);
+    
+    if (out.tool_calls) {
+        goto(act);
+    }
+    
+    // Model returned structured ResolutionResult
+    // Validate winning_option is in range
+    if (out.output.winning_option < 0 || out.output.winning_option >= len(request.options)) {
+        messages.push(user(`Invalid winning_option ${out.output.winning_option}. Must be between 0 and ${len(request.options) - 1}. Please try again.`));
+        goto(think);
+    }
+    
+    // Verify market_id matches (safety check)
+    if (out.output.market_id != request.market_id) {
+        raise("Resolution market_id mismatch");
+    }
+    
+    // Agent complete - runtime will deliver this as callback to the contract
+    end;
+}
+
+#[tool]
+node act() {
+    let results = tools.dispatch(messages.last());
+    messages.push(results);
+    goto(think);
+}
