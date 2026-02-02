@@ -71,10 +71,18 @@ pm config
 ┌────────┴────────┐                                  │ 4. chain_ext(agents_request)
 │                 │                                  ▼
 │     User/EOA    │                      ┌─────────────────────────┐
-│                 │<────────────────────>│  Resolver Oracle Agent  │
-└─────────────────┘   6. Settlement      │  (resolver_oracle.ship) │
+│                 │                      │  Resolver Oracle Agent  │
+└─────────────────┘                      │  (resolver_oracle.ship) │
                                          │                         │
                                          │  5. get_price/web_search│
+                                         └───────────┬─────────────┘
+                                                     │
+                                                     │ 6. callback(resolution)
+                                                     ▼
+                                         ┌─────────────────────────┐
+                                         │   Prediction Market     │
+                                         │      Contract           │
+                                         │   (prediction_market)   │
                                          └─────────────────────────┘
 ```
 
